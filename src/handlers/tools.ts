@@ -81,9 +81,17 @@ export async function handleNews(apiKey?: string): Promise<string> {
 
 export async function getUserMemories(userId: string): Promise<string> {
   try {
-    const { data } = await supabase.from('bot_memories').select('key, value').eq('user_id', userId).limit(50);
-    if (!data || data.length === 0) return '';
-    return '\n\nUSER MEMORIES:\n' + data.map(m => `- ${m.key}: ${m.value}`).join('\n');
+    const [memoriesRes, messagesRes] = await Promise.all([
+      supabase.from('bot_memories').select('key, value').eq('user_id', userId).not('key', 'like', 'msg_%').limit(30),
+      supabase.from('bot_memories').select('key, value').eq('user_id', userId).like('key', 'msg_%').order('created_at', { ascending: false }).limit(20),
+    ]);
+    const memories = memoriesRes.data || [];
+    const messages = messagesRes.data || [];
+    if (memories.length === 0 && messages.length === 0) return '';
+    let result = '\n\nUSER MEMORIES:';
+    if (memories.length > 0) result += '\n' + memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+    if (messages.length > 0) result += '\nRecent messages:\n' + messages.map(m => `- "${m.value}"`).join('\n');
+    return result;
   } catch { return ''; }
 }
 
