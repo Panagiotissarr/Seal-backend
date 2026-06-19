@@ -153,6 +153,8 @@ export async function handleMessage(message: Message, state: BotState) {
   const defaultPrompt = getDefaultPrompt() || `You are a cute seal. Reply in character (1-3 sentences). Respond in seal character:`;
   const systemPrompt = state.personality || `${defaultPrompt}\n\n${extraContext}\n\n${userMemories}`;
 
+  (message.channel as any).sendTyping();
+
   try {
     const res = await fetch(`${CLOUD_API_URL}/chat`, {
       method: 'POST',
