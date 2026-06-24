@@ -89,20 +89,40 @@ export async function getDiscordUserViaRest(): Promise<{
   avatar: string | null;
   discriminator: string;
 } | null> {
-  if (!TOKEN) return null;
+  if (!TOKEN) {
+    console.error("DEBUG: DISCORD_BOT_TOKEN is empty or undefined");
+    return null;
+  }
+
+  console.error(
+    `DEBUG: Token exists, length=${TOKEN.length}, starts with=${TOKEN.substring(0, 8)}...`,
+  );
+
   try {
     const res = await fetch("https://discord.com/api/v10/users/@me", {
       headers: { Authorization: `Bot ${TOKEN}` },
     });
-    if (!res.ok) return null;
+
+    console.error(`DEBUG: Discord API status=${res.status} ${res.statusText}`);
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "unknown error");
+      console.error(`DEBUG: Discord API error response: ${errorText}`);
+      return null;
+    }
+
     const data = await res.json();
+    console.error(
+      `DEBUG: Discord API success, authenticated as: ${data.username}#${data.discriminator}`,
+    );
     return {
       id: data.id,
       username: data.username,
       avatar: data.avatar,
       discriminator: data.discriminator || "0",
     };
-  } catch {
+  } catch (err) {
+    console.error(`DEBUG: Fetch to Discord API failed: ${err}`);
     return null;
   }
 }
