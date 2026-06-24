@@ -1,5 +1,5 @@
-import { client } from './discord.js';
-import { getState, updateState } from './botState.js';
+import { client } from "./discord.js";
+import { getState, updateState } from "./botState.js";
 
 const Playing = 0;
 
@@ -8,16 +8,48 @@ const TOKEN = process.env.DISCORD_BOT_TOKEN;
 export async function startDiscordBot(): Promise<boolean> {
   if (client.isReady()) return true;
 
+  // Validate token via REST API before attempting WebSocket connection
+  console.log("Validating Discord token via REST API...");
+  const userData = await getDiscordUserViaRest();
+  if (!userData) {
+    console.error("Invalid Discord token: REST API authentication failed");
+    try {
+      await updateState({ status: "error" });
+    } catch (stateErr) {
+      console.error("Failed to update state:", stateErr);
+    }
+    return false;
+  }
+  console.log(`Token valid: Bot user ID ${userData.id}`);
+
   try {
-    await client.login(TOKEN);
-    await new Promise<void>(resolve => {
-      if (client.isReady()) return resolve();
-      client.once('ready', () => resolve());
-    });
+    // Add connection timeout of 30 seconds
+    const loginPromise = client.login(TOKEN);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Discord connection timeout after 30 seconds")),
+        30000,
+      ),
+    );
+    await Promise.race([loginPromise, timeoutPromise]);
+
+    // Wait for ready event with timeout
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        if (client.isReady()) return resolve();
+        client.once("ready", () => resolve());
+      }),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Ready event timeout after 30 seconds")),
+          30000,
+        ),
+      ),
+    ]);
     console.log(`Logged in as ${client.user?.tag}`);
 
     await updateState({
-      status: 'online',
+      status: "online",
       bot_id: client.user?.id || null,
       bot_username: client.user?.username || null,
     });
@@ -29,8 +61,12 @@ export async function startDiscordBot(): Promise<boolean> {
 
     return true;
   } catch (err) {
-    console.error('Failed to login:', err);
-    await updateState({ status: 'error' });
+    console.error("Failed to login:", err);
+    try {
+      await updateState({ status: "error" });
+    } catch (stateErr) {
+      console.error("Failed to update state:", stateErr);
+    }
     return false;
   }
 }
@@ -40,27 +76,43 @@ export async function stopDiscordBot() {
   // Don't destroy the client — keep WebSocket alive so REST API still works.
   // Just clear the activity and update state so the bot stops responding to messages.
   client.user?.setActivity();
-  await updateState({ status: 'offline', bot_id: client.user?.id || null, bot_username: client.user?.username || null });
+  await updateState({
+    status: "offline",
+    bot_id: client.user?.id || null,
+    bot_username: client.user?.username || null,
+  });
 }
 
-export async function getDiscordUserViaRest(): Promise<{ id: string; username: string; avatar: string | null; discriminator: string } | null> {
+export async function getDiscordUserViaRest(): Promise<{
+  id: string;
+  username: string;
+  avatar: string | null;
+  discriminator: string;
+} | null> {
   if (!TOKEN) return null;
   try {
-    const res = await fetch('https://discord.com/api/v10/users/@me', {
+    const res = await fetch("https://discord.com/api/v10/users/@me", {
       headers: { Authorization: `Bot ${TOKEN}` },
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return { id: data.id, username: data.username, avatar: data.avatar, discriminator: data.discriminator || '0' };
+    return {
+      id: data.id,
+      username: data.username,
+      avatar: data.avatar,
+      discriminator: data.discriminator || "0",
+    };
   } catch {
     return null;
   }
 }
 
-export async function getGuildsViaRest(): Promise<{ id: string; name: string; icon: string | null }[]> {
+export async function getGuildsViaRest(): Promise<
+  { id: string; name: string; icon: string | null }[]
+> {
   if (!TOKEN) return [];
   try {
-    const res = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+    const res = await fetch("https://discord.com/api/v10/users/@me/guilds", {
       headers: { Authorization: `Bot ${TOKEN}` },
     });
     if (!res.ok) return [];
