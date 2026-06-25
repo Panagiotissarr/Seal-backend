@@ -167,6 +167,36 @@ export async function handleMessage(message: Message, state: BotState) {
     await updateState({ messages_sent: (state.messages_sent || 0) + 1 });
     return;
   }
+
+  // Version/Update questions - trigger web search for software versions
+  const versionPatterns = [
+    /latest version of (.+?)(?:\?|$)/i,
+    /current version of (.+?)(?:\?|$)/i,
+    /what is the (?:latest|current|newest) version of (.+?)(?:\?|$)/i,
+    /what version is (.+?) (?:on|at|current)/i,
+    /newest version of (.+?)(?:\?|$)/i,
+  ];
+
+  for (const pattern of versionPatterns) {
+    const match = rawContent.match(pattern);
+    if (match) {
+      const software = match[1].trim().toLowerCase();
+      // Perform web search for version info
+      const result = await handleWebSearch(
+        `${software} latest version`,
+        CLOUD_API_KEY,
+      );
+      if (result) {
+        await (message.channel as any).send({
+          content: `Arf arf! *checks the interwebs* ${result} 🦭🔍`,
+          reply: { messageReference: message.id },
+        });
+        await updateState({ messages_sent: (state.messages_sent || 0) + 1 });
+        return;
+      }
+    }
+  }
+
   const userMemories = await getUserMemories(message.author.id);
 
   let extraContext = "";
