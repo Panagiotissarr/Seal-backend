@@ -6,6 +6,8 @@ import { handleImageGeneration, handleWebSearch, handleNews, getUserInfo, getUse
 import { supabase } from '../services/supabase.js';
 import { getDefaultPrompt } from '../services/configLoader.js';
 
+const OWNER_ID = '1449482449317789770';
+
 export async function handleCommand(message: Message, rawContent: string, state: BotState) {
   const spaceIdx = rawContent.indexOf(' ');
   const cmd = (spaceIdx === -1 ? rawContent : rawContent.slice(0, spaceIdx)).toLowerCase();
@@ -13,6 +15,10 @@ export async function handleCommand(message: Message, rawContent: string, state:
 
   switch (cmd) {
     case 'seal!shutdown': {
+      if (message.author.id !== OWNER_ID) {
+        await (message.channel as any).send({ content: 'Arf! Only my owner can put me to sleep! 🦭🔒', reply: { messageReference: message.id } });
+        return;
+      }
       await updateState({ kill_switch: true, status: 'offline' });
       await (message.channel as any).send('Arf... *yawns and slides off the ice floe* This seal needs a nap... zzz... goodnight, fishies... 🌊🐟💤');
       return;
@@ -20,12 +26,20 @@ export async function handleCommand(message: Message, rawContent: string, state:
 
     case 'seal!start':
     case 'seal!startup': {
+      if (message.author.id !== OWNER_ID) {
+        await (message.channel as any).send({ content: 'Arf! Only my owner can wake me up! 🦭🔒', reply: { messageReference: message.id } });
+        return;
+      }
       await updateState({ kill_switch: false, status: 'online', auto_reply: true });
       await (message.channel as any).send("ARF ARF ARF! *bursts out of the water doing a backflip* I'M AWAKE!! Who's got fish?! 🦭🐟🧊");
       return;
     }
 
     case 'seal!say': {
+      if (message.author.id !== OWNER_ID) {
+        await (message.channel as any).send({ content: 'Arf! Only my owner can make me say things! 🦭🔒', reply: { messageReference: message.id } });
+        return;
+      }
       if (!args) {
         await (message.channel as any).send({ content: 'Arf arf?? Tell me what to say! `seal!say <message>` 🦭', reply: { messageReference: message.id } });
         return;
