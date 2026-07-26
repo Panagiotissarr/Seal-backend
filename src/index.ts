@@ -75,7 +75,10 @@ client.once(Events.ClientReady, (c) => {
 
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
-  if (!currentState || currentState.kill_switch) return;
+  if (!currentState) return;
+  const lcContent = message.content.trim().toLowerCase();
+  const isStartCmd = lcContent === 'seal!start' || lcContent === 'seal!startup';
+  if (currentState.kill_switch && !isStartCmd) return;
   if (currentState.conv_mode && !message.content.startsWith("seal!")) return;
 
   const { handleMessage } = await import("./handlers/messageHandler.js");
