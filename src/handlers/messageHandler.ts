@@ -2,6 +2,7 @@ import { Message } from "discord.js";
 import { client } from "../services/discord.js";
 import { updateState, type BotState } from "../services/botState.js";
 import { supabase } from "../services/supabase.js";
+import { isChannelMonitored } from "../services/monitoredChannels.js";
 import { getDefaultPrompt } from "../services/configLoader.js";
 import {
   handleImageSearch,
@@ -52,7 +53,23 @@ export async function handleMessage(message: Message, state: BotState) {
 
   if (!rawContent && !hasAttachments) return;
   if (state.status !== "online") return;
+
+  // ─── Command Handling ───
+  // Commands work in ANY server (not just the selected one) so the owner can
+  // manage channels with seal!addchannel / seal!remchannel anywhere.
+  if (rawContent.startsWith("seal!")) {
+    const { handleCommand } = await import("./commandHandler.js");
+    await handleCommand(message, rawContent, state);
+    return;
+  }
+
+  // ─── Channel Scope ───
+  // Channels added via seal!addchannel (monitored_channels) work across
+  // servers. The web-panel selected_guild/selected_channel still apply to
+  // channels that were NOT explicitly added.
+  const monitored = await isChannelMonitored(message.channelId);
   if (
+    !monitored &&
     state.selected_guild &&
     message.guild?.id &&
     message.guild.id !== state.selected_guild
@@ -63,11 +80,7 @@ export async function handleMessage(message: Message, state: BotState) {
   if (!locked) return;
 
   // ─── Counting Game ───
-  if (
-    !rawContent.startsWith("seal!") &&
-    state.counting_channel &&
-    message.channelId === state.counting_channel
-  ) {
+  if (state.counting_channel && message.channelId === state.counting_channel) {
     const num = parseInt(rawContent);
     const expectedNext = (state.counting_number || 0) + 1;
 
@@ -120,15 +133,12 @@ export async function handleMessage(message: Message, state: BotState) {
     }
   }
 
-  // ─── Command Handling ───
-  if (rawContent.startsWith("seal!")) {
-    const { handleCommand } = await import("./commandHandler.js");
-    await handleCommand(message, rawContent, state);
-    return;
-  }
-
   // ─── Natural Language / AI Auto-reply (via Cloud API) ───
-  if (state.selected_channel && message.channelId !== state.selected_channel)
+  if (
+    !monitored &&
+    state.selected_channel &&
+    message.channelId !== state.selected_channel
+  )
     return;
   if (!state.auto_reply || state.kill_switch || !CLOUD_API_KEY) return;
 

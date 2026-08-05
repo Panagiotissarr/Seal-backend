@@ -4,6 +4,7 @@ const BPrimary = 1, BSecondary = 2, BSuccess = 3, BDanger = 4;
 import { updateState, getState, type BotState } from '../services/botState.js';
 import { handleImageGeneration, handleWebSearch, handleNews, getUserInfo, getUserMemories, needsWebSearch } from './tools.js';
 import { supabase } from '../services/supabase.js';
+import { isChannelMonitored, addMonitoredChannel, removeMonitoredChannel, getMonitoredChannels } from '../services/monitoredChannels.js';
 import { getDefaultPrompt } from '../services/configLoader.js';
 
 const OWNER_ID = '1449482449317789770';
@@ -173,6 +174,8 @@ export async function handleCommand(message: Message, rawContent: string, state:
         '😂 `seal!joke` — Seal comedy!',
         '🦭 `seal!fact` — Real seal facts!',
         '🔢 `seal!count [#channel]` — Start a counting game!',
+        '📍 `seal!addchannel` — Add this channel (or `seal!addchannel #channel`) — owner only',
+        '🗑️ `seal!remchannel` — Remove this channel (or `seal!remchannel #channel`) — owner only',
         '🎧 `seal!conv` — Toggle quiet mode!',
         '🛡️ `seal!killswitch` — Emergency flipper slam!',
         '⚙️ `seal!settings` — Peek at my control panel!',
@@ -318,6 +321,62 @@ export async function handleCommand(message: Message, rawContent: string, state:
         content: 'Arf! *flops back into the ocean* I\'m free to swim in any server again! 🦭🌊',
         reply: { messageReference: message.id },
       });
+      return;
+    }
+
+    case 'seal!addchannel': {
+      if (message.author.id !== OWNER_ID) {
+        await (message.channel as any).send({ content: 'Arf! Only my owner can choose where I hang out! 🦭🔒', reply: { messageReference: message.id } });
+        return;
+      }
+      if (!message.guild?.id) {
+        await (message.channel as any).send({ content: 'Arf! This command only works in a server, not DMs! 🦭', reply: { messageReference: message.id } });
+        return;
+      }
+      const target = args ? args.replace(/[<#>]/g, '').trim() : message.channelId;
+      const channel = message.guild.channels.cache.get(target);
+      if (!channel || !channel.isTextBased()) {
+        await (message.channel as any).send({ content: 'Arf! I can\'t find that text channel! Try `seal!addchannel #channel` 🦭', reply: { messageReference: message.id } });
+        return;
+      }
+      const ok = await addMonitoredChannel(message.guild.id, target);
+      if (!ok) {
+        await (message.channel as any).send({ content: 'Arf! I couldn\'t save that — my seal brain hiccuped! Try again later! 🦭🔧', reply: { messageReference: message.id } });
+        return;
+      }
+      await (message.channel as any).send({ content: `Arf arf! *stamps flipper approvingly* I'll now swim and chat in <#${target}> — in **${message.guild.name}**! 🦭🌊`, reply: { messageReference: message.id } });
+      return;
+    }
+
+    case 'seal!remchannel':
+    case 'seal!removechannel': {
+      if (message.author.id !== OWNER_ID) {
+        await (message.channel as any).send({ content: 'Arf! Only my owner can remove my swimming spots! 🦭🔒', reply: { messageReference: message.id } });
+        return;
+      }
+      if (!message.guild?.id) {
+        await (message.channel as any).send({ content: 'Arf! This command only works in a server, not DMs! 🦭', reply: { messageReference: message.id } });
+        return;
+      }
+      const target = args ? args.replace(/[<#>]/g, '').trim() : message.channelId;
+      const wasMonitored = await isChannelMonitored(target);
+      if (!wasMonitored) {
+        const list = await getMonitoredChannels();
+        const here = list.filter((c) => c.guild_id === message.guild!.id);
+        if (here.length === 0) {
+          await (message.channel as any).send({ content: `Arf! <#${target}> isn't on my list, and I don't have any swimming spots in **${message.guild.name}** yet. Use \`seal!addchannel\` to add one! 🦭`, reply: { messageReference: message.id } });
+        } else {
+          const shown = here.map((c) => `<#${c.channel_id}>`).join(', ');
+          await (message.channel as any).send({ content: `Arf! <#${target}> isn't on my list here. My swimming spots in **${message.guild.name}**: ${shown} 🦭`, reply: { messageReference: message.id } });
+        }
+        return;
+      }
+      const ok = await removeMonitoredChannel(target);
+      if (!ok) {
+        await (message.channel as any).send({ content: 'Arf! I couldn\'t remove that — my seal brain hiccuped! Try again later! 🦭🔧', reply: { messageReference: message.id } });
+        return;
+      }
+      await (message.channel as any).send({ content: `Arf! *packs my flippers* I'll stop swimming in <#${target}> from now on. Bye bye, fishies! 🦭👋`, reply: { messageReference: message.id } });
       return;
     }
 
