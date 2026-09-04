@@ -39,6 +39,7 @@ fi
 rm -rf "$BACKUP_DIR"
 
 echo "=== Step 4: Install dependencies ==="
+rm -rf node_modules package-lock.json
 npm install
 
 echo "=== Step 5: Build ==="
